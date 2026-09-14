@@ -73,14 +73,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
-      - name: Install Python Dependencies
+      - name: Fast Install Dependencies with UV
         run: |
-          pip install --upgrade pip
-          pip install ta-lib tabulate openpyxl
-          pip install -r requirements.txt
-          pip install -e .
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+          uv pip install --system pkscreener tabulate openpyxl
 
       - name: Prime Historical Candle Cache
         run: |
@@ -103,10 +103,10 @@ jobs:
 
           if [ -n "$CUSTOM_STOCKS" ]; then
             echo "Scanning custom stock list: $CUSTOM_STOCKS"
-            python -m pkscreener.pkscreenercli -a Y -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE"
+            echo "" | python -m pkscreener.pkscreenercli -a Y -p -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE"
           else
             echo "Scanning Index: X:$INDEX_CODE:$SCANNER_CODE"
-            python -m pkscreener.pkscreenercli -a Y -e -o "X:$INDEX_CODE:$SCANNER_CODE"
+            echo "" | python -m pkscreener.pkscreenercli -a Y -p -e -o "X:$INDEX_CODE:$SCANNER_CODE"
           fi
 
       - name: Render Results into GitHub Summary
