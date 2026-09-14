@@ -97,15 +97,29 @@ jobs:
           echo "Custom Stocks: $CUSTOM_STOCKS"
           echo "=========================================================="
 
-          mkdir -p results
+          mkdir -p results/Reports
 
           if [ -n "$CUSTOM_STOCKS" ]; then
             echo "Scanning custom stock list: $CUSTOM_STOCKS"
-            python -m pkscreener.pkscreenercli -a Y -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE"
+            python -m pkscreener.pkscreenercli -a Y -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE" 2>&1 | tee scan_raw.txt
           else
             echo "Scanning Index: X:$INDEX_CODE:$SCANNER_CODE"
-            python -m pkscreener.pkscreenercli -a Y -e -o "X:$INDEX_CODE:$SCANNER_CODE"
+            python -m pkscreener.pkscreenercli -a Y -e -o "X:$INDEX_CODE:$SCANNER_CODE" 2>&1 | tee scan_raw.txt
           fi
+
+          # Strip ANSI color codes for clean markdown display
+          sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' scan_raw.txt > scan_clean.txt || cp scan_raw.txt scan_clean.txt
+
+          echo "## 📊 PKScreener Results" >> $GITHUB_STEP_SUMMARY
+          echo "**Index:** ${{ github.event.inputs.index || 'Nifty 50' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scanner Filter:** ${{ github.event.inputs.scanner || 'Breakouts' }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$CUSTOM_STOCKS" ]; then
+            echo "**Custom Stock List:** $CUSTOM_STOCKS" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          tail -n 60 scan_clean.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Scan Results & Reports
         if: always()
