@@ -1,0 +1,123 @@
+﻿name: 📈 PKScreener Stock Scanner
+
+on:
+  workflow_dispatch:
+    inputs:
+      index:
+        description: 'Stock Universe / Index'
+        required: true
+        default: '1 - Nifty 50'
+        type: choice
+        options:
+          - '1 - Nifty 50'
+          - '2 - Nifty Next 50'
+          - '3 - Nifty 100'
+          - '4 - Nifty 200'
+          - '5 - Nifty 500'
+          - '6 - Nifty Smallcap 50'
+          - '7 - Nifty Smallcap 100'
+          - '8 - Nifty Smallcap 250'
+          - '9 - Nifty Midcap 50'
+          - '10 - Nifty Midcap 100'
+          - '11 - Nifty Midcap 150'
+          - '12 - Nifty (All Stocks - ~2000)'
+          - '14 - F&O Stocks Only'
+      scanner:
+        description: 'Scan Strategy / Filter'
+        required: true
+        default: '1 - Probable Breakouts/Breakdowns'
+        type: choice
+        options:
+          - '1 - Probable Breakouts/Breakdowns'
+          - '2 - Today Breakouts/Breakdowns'
+          - '3 - Consolidating stocks'
+          - '6 - Reversal Signals'
+          - '7 - Stocks making Chart Patterns'
+          - '9 - Volume gainers'
+          - '10 - Closing at least 2% up since last 3 days'
+          - '13 - Bullish RSI & MACD'
+          - '17 - 52 week high breakout (today)'
+          - '20 - Bullish for next day'
+          - '23 - Breaking out now'
+          - '24 - Higher Highs, Lows & Close (SuperTrend)'
+          - '31 - High Momentum (RSI, MFI, CCI)'
+          - '33 - Potential Profitable setups'
+          - '0 - Full Technical Screening'
+      stocklist:
+        description: 'Or Specific Stock Symbols (Optional: Comma-separated, e.g. TATAMOTORS,RELIANCE. Overrides index above if filled)'
+        required: false
+        default: ''
+        type: string
+
+  # Automatically scan after market close (3:45 PM IST / 10:15 AM UTC, Mon-Fri)
+  schedule:
+    - cron: '15 10 * * 1-5'
+
+jobs:
+  run-pkscreener:
+    name: Run PKScreener Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install TA-Lib System Library
+        run: |
+          if [ -f ".github/dependencies/ta-lib_0.6.4_amd64.deb" ]; then
+            sudo dpkg -i .github/dependencies/ta-lib_0.6.4_amd64.deb
+          fi
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ta-lib
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run PKScreener Scanner
+        env:
+          RUNNER: "GitHub_Actions"
+        run: |
+          INDEX_CODE=$(echo "${{ github.event.inputs.index || '1 - Nifty 50' }}" | cut -d' ' -f1)
+          SCANNER_CODE=$(echo "${{ github.event.inputs.scanner || '1 - Probable Breakouts/Breakdowns' }}" | cut -d' ' -f1)
+          CUSTOM_STOCKS="${{ github.event.inputs.stocklist }}"
+
+          echo "=========================================================="
+          echo "Starting PKScreener Scan..."
+          echo "Index Option: $INDEX_CODE"
+          echo "Scanner Option: $SCANNER_CODE"
+          echo "Custom Stocks: $CUSTOM_STOCKS"
+          echo "=========================================================="
+
+          mkdir -p results
+
+          if [ -n "$CUSTOM_STOCKS" ]; then
+            echo "Scanning custom stock list: $CUSTOM_STOCKS"
+            python -m pkscreener.pkscreenercli -a Y -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE"
+          else
+            echo "Scanning Index: X:$INDEX_CODE:$SCANNER_CODE"
+            python -m pkscreener.pkscreenercli -a Y -e -o "X:$INDEX_CODE:$SCANNER_CODE"
+          fi
+
+      - name: Upload Scan Results & Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkscreener-scan-results
+          path: |
+            results/
+            *.xlsx
+            *.csv
+            *.html
+            *.txt
+            !tos.txt
+            !Disclaimer.txt
+          if-no-files-found: ignore
