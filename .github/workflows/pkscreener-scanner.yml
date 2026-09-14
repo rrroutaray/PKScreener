@@ -25,9 +25,10 @@ on:
       scanner:
         description: 'Scan Strategy / Filter'
         required: true
-        default: '1 - Probable Breakouts/Breakdowns'
+        default: '0 - Full Technical Screening'
         type: choice
         options:
+          - '0 - Full Technical Screening'
           - '1 - Probable Breakouts/Breakdowns'
           - '2 - Today Breakouts/Breakdowns'
           - '3 - Consolidating stocks'
@@ -42,7 +43,6 @@ on:
           - '24 - Higher Highs, Lows & Close (SuperTrend)'
           - '31 - High Momentum (RSI, MFI, CCI)'
           - '33 - Potential Profitable setups'
-          - '0 - Full Technical Screening'
       stocklist:
         description: 'Or Specific Stock Symbols (Optional: Comma-separated, e.g. TATAMOTORS,RELIANCE. Overrides index above if filled)'
         required: false
@@ -78,16 +78,26 @@ jobs:
       - name: Install Python Dependencies
         run: |
           pip install --upgrade pip
-          pip install ta-lib
+          pip install ta-lib tabulate openpyxl
           pip install -r requirements.txt
           pip install -e .
+
+      - name: Download Historical Stock Data
+        run: |
+          mkdir -p results/Data
+          echo "Downloading fresh 2,300+ stock candle data..."
+          curl -sL "https://raw.githubusercontent.com/pkjmesra/PKScreener/actions-data-download/actions-data-download/daily_candles.pkl" -o results/Data/daily_candles.pkl
+          cp results/Data/daily_candles.pkl results/Data/stock_data.pkl
+          TODAY=$(date +"%d%m%Y")
+          cp results/Data/daily_candles.pkl "results/Data/stock_data_${TODAY}.pkl"
+          echo "Historical stock candles loaded successfully: $(ls -lh results/Data/daily_candles.pkl | awk '{print $5}')"
 
       - name: Run PKScreener Scanner
         env:
           RUNNER: "GitHub_Actions"
         run: |
           INDEX_CODE=$(echo "${{ github.event.inputs.index || '1 - Nifty 50' }}" | cut -d' ' -f1)
-          SCANNER_CODE=$(echo "${{ github.event.inputs.scanner || '1 - Probable Breakouts/Breakdowns' }}" | cut -d' ' -f1)
+          SCANNER_CODE=$(echo "${{ github.event.inputs.scanner || '0 - Full Technical Screening' }}" | cut -d' ' -f1)
           CUSTOM_STOCKS="${{ github.event.inputs.stocklist }}"
 
           echo "=========================================================="
@@ -97,29 +107,21 @@ jobs:
           echo "Custom Stocks: $CUSTOM_STOCKS"
           echo "=========================================================="
 
-          mkdir -p results/Reports
-
           if [ -n "$CUSTOM_STOCKS" ]; then
             echo "Scanning custom stock list: $CUSTOM_STOCKS"
-            python -m pkscreener.pkscreenercli -a Y -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE" 2>&1 | tee scan_raw.txt
+            python -m pkscreener.pkscreenercli -a Y -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE"
           else
             echo "Scanning Index: X:$INDEX_CODE:$SCANNER_CODE"
-            python -m pkscreener.pkscreenercli -a Y -e -o "X:$INDEX_CODE:$SCANNER_CODE" 2>&1 | tee scan_raw.txt
+            python -m pkscreener.pkscreenercli -a Y -e -o "X:$INDEX_CODE:$SCANNER_CODE"
           fi
 
-          # Strip ANSI color codes for clean markdown display
-          sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' scan_raw.txt > scan_clean.txt || cp scan_raw.txt scan_clean.txt
-
-          echo "## 📊 PKScreener Results" >> $GITHUB_STEP_SUMMARY
-          echo "**Index:** ${{ github.event.inputs.index || 'Nifty 50' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Scanner Filter:** ${{ github.event.inputs.scanner || 'Breakouts' }}" >> $GITHUB_STEP_SUMMARY
-          if [ -n "$CUSTOM_STOCKS" ]; then
-            echo "**Custom Stock List:** $CUSTOM_STOCKS" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          tail -n 60 scan_clean.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: Render Results into GitHub Summary
+        if: always()
+        run: |
+          echo "## 📊 PKScreener Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Selected Index:** ${{ github.event.inputs.index || '1 - Nifty 50' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Selected Scanner Filter:** ${{ github.event.inputs.scanner || '0 - Full Technical Screening' }}" >> $GITHUB_STEP_SUMMARY
+          python .github/workflows/export_summary.py
 
       - name: Upload Scan Results & Reports
         if: always()
@@ -127,11 +129,6 @@ jobs:
         with:
           name: pkscreener-scan-results
           path: |
-            results/
-            *.xlsx
-            *.csv
-            *.html
-            *.txt
-            !tos.txt
-            !Disclaimer.txt
+            results/Reports/
+            results/Data/last_screened_results.pkl
           if-no-files-found: ignore
