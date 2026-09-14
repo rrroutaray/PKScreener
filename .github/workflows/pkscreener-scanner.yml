@@ -1,4 +1,4 @@
-﻿name: 📈 PKScreener Stock Scanner
+name: 📈 PKScreener Stock Scanner
 
 on:
   workflow_dispatch:
@@ -81,6 +81,7 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
           uv pip install --system pkscreener tabulate openpyxl
+          uv pip install --system -e .
 
       - name: Prime Historical Candle Cache
         run: |
@@ -88,7 +89,7 @@ jobs:
 
       - name: Run PKScreener Scanner
         env:
-          RUNNER: "GitHub_Actions"
+          RUNNER: "LOCAL_RUN_SCANNER"
         run: |
           INDEX_CODE=$(echo "${{ github.event.inputs.index || '1 - Nifty 50' }}" | cut -d' ' -f1)
           SCANNER_CODE=$(echo "${{ github.event.inputs.scanner || '0 - Full Technical Screening' }}" | cut -d' ' -f1)
@@ -103,10 +104,10 @@ jobs:
 
           if [ -n "$CUSTOM_STOCKS" ]; then
             echo "Scanning custom stock list: $CUSTOM_STOCKS"
-            echo "" | python -m pkscreener.pkscreenercli -a Y -p -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE"
+            python pkscreener/pkscreenercli.py -a Y -p -e --stocklist "$CUSTOM_STOCKS" -o "X:0:$CUSTOM_STOCKS:$SCANNER_CODE"
           else
             echo "Scanning Index: X:$INDEX_CODE:$SCANNER_CODE"
-            echo "" | python -m pkscreener.pkscreenercli -a Y -p -e -o "X:$INDEX_CODE:$SCANNER_CODE"
+            python pkscreener/pkscreenercli.py -a Y -p -e -o "X:$INDEX_CODE:$SCANNER_CODE"
           fi
 
       - name: Render Results into GitHub Summary

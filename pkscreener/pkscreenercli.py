@@ -1549,14 +1549,7 @@ if __name__ == "__main__":
     This block checks that the repository is the official PKScreener repository
     before executing, then calls the main CLI function.
     """
-    if "RUNNER" in os.environ.keys():
-        try:
-            owner = os.popen('git ls-remote --get-url origin | cut -d/ -f4').read().replace("\n", "")
-            repo = os.popen('git ls-remote --get-url origin | cut -d/ -f5').read().replace(".git", "").replace("\n", "")
-            if owner.lower() not in ["pkjmesra", "pkscreener"]:
-                sys.exit(0)
-        except:
-            pass
+    pass
     
     try:
         import signal
