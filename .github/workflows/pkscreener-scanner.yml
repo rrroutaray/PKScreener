@@ -81,7 +81,6 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
           uv pip install --system pkscreener tabulate openpyxl
-          uv pip install --system --no-deps -e .
 
       - name: Prime Historical Candle Cache
         run: |
