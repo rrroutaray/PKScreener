@@ -82,15 +82,9 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
-      - name: Download Historical Stock Data
+      - name: Prime Historical Candle Cache
         run: |
-          mkdir -p results/Data
-          echo "Downloading fresh 2,300+ stock candle data..."
-          curl -sL "https://raw.githubusercontent.com/pkjmesra/PKScreener/actions-data-download/actions-data-download/daily_candles.pkl" -o results/Data/daily_candles.pkl
-          cp results/Data/daily_candles.pkl results/Data/stock_data.pkl
-          TODAY=$(date +"%d%m%Y")
-          cp results/Data/daily_candles.pkl "results/Data/stock_data_${TODAY}.pkl"
-          echo "Historical stock candles loaded successfully: $(ls -lh results/Data/daily_candles.pkl | awk '{print $5}')"
+          python .github/workflows/prepare_data.py
 
       - name: Run PKScreener Scanner
         env:
